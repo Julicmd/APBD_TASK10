@@ -1,0 +1,11 @@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+        <span>&#9888;</span>
+        <span>@Message</span>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+}
