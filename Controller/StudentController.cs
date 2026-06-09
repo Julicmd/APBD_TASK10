@@ -4,6 +4,7 @@ namespace StudentPanel.Controller;
 
 public class StudentController
 {
+    public static int _nextId = 1;
     private static readonly List<StudentDto> Students = new()
     {
         new() { Id = 1, IndexNumber = "s12345", FirstName = "Anna",  LastName = "Kowalska",   Email = "anna@example.com",  Semester = 3 },
@@ -22,7 +23,8 @@ public class StudentController
     {
         new() { StudentId = 1, CourseId = 1, AssignedAt = DateTime.UtcNow.AddDays(-10) }
     };
-
+    
+    private static int NextId() => _nextId++;
 
     public static void MapEndpoints(WebApplication app)
     {
@@ -42,6 +44,41 @@ public class StudentController
                 .Join(Courses, a => a.CourseId, c => c.Id, (_, c) => c)
                 .ToList();
             return Results.Ok(list);
+        });
+        
+        app.MapPost("/api/students", (CreateStudentRequest request) =>
+        {
+            var student = new StudentDto
+            {
+                Id          = NextId(),
+                IndexNumber = request.IndexNumber,
+                FirstName   = request.FirstName,
+                LastName    = request.LastName,
+                Email       = request.Email,
+                Semester    = request.Semester
+            };
+            Students.Add(student);
+            return Results.Created($"/api/students/{student.Id}", student);
+        });
+        
+        app.MapGet("/api/courses", () =>
+            Results.Ok(Courses));
+
+        app.MapPost("/api/students/{id:int}/courses", (int id, AssignStudentCourseRequest request) =>
+        {
+            if (Students.All(s => s.Id != id))              return Results.NotFound("Student not found.");
+            if (Courses.All(c => c.Id != request.CourseId)) return Results.BadRequest("Course not found.");
+            if (Assignments.Any(a => a.StudentId == id && a.CourseId == request.CourseId))
+                return Results.Conflict("Already assigned.");
+
+            var assignment = new StudentCourseDto
+            {
+                StudentId  = id,
+                CourseId   = request.CourseId,
+                AssignedAt = DateTime.UtcNow
+            };
+            Assignments.Add(assignment);
+            return Results.Ok(assignment);
         });
 
     }
