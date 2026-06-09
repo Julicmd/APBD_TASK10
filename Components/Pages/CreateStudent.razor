@@ -1,0 +1,80 @@
+@page "/students/create"
+@rendermode InteractiveServer
+@inject StudentsApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Create Student</PageTitle>
+<h1>Create Student</h1>
+
+<ApiError Message="@_error" />
+
+<div class="card" style="max-width: 540px;">
+    <div class="card-body">
+        <EditForm Model="_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+
+            <div class="mb-3">
+                <label class="form-label">Index Number</label>
+                <InputText class="form-control" @bind-Value="_model.IndexNumber" />
+                <ValidationMessage For="() => _model.IndexNumber" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">First Name</label>
+                <InputText class="form-control" @bind-Value="_model.FirstName" />
+                <ValidationMessage For="() => _model.FirstName" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Last Name</label>
+                <InputText class="form-control" @bind-Value="_model.LastName" />
+                <ValidationMessage For="() => _model.LastName" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText class="form-control" @bind-Value="_model.Email" type="email" />
+                <ValidationMessage For="() => _model.Email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Semester (1–8)</label>
+                <InputNumber class="form-control" @bind-Value="_model.Semester" />
+                <ValidationMessage For="() => _model.Semester" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                @(_submitting ? "Creating..." : "Create Student")
+            </button>
+            <a class="btn btn-secondary ms-2" href="/students">Cancel</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private readonly CreateStudentRequest _model = new();
+    private bool _submitting;
+    private string? _error;
+
+    private async Task HandleSubmit()
+    {
+        _submitting = true;
+        _error = null;
+
+        try
+        {
+            var created = await Api.CreateStudentAsync(_model);
+            if (created is not null)
+                Nav.NavigateTo($"/students/{created.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to create student: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

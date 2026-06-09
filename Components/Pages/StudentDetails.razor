@@ -1,0 +1,201 @@
+@page "/students/{Id:int}"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject StudentsApiClient Api
+@inject ObservedStudentsState ObservedState
+@inject IJSRuntime JS
+
+<PageTitle>Student Details</PageTitle>
+
+<LoadingPanel IsLoading="_loading" Message="Loading student..." />
+<ApiError Message="@_error" />
+
+@if (_student is not null)
+{
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">@_student.FirstName @_student.LastName</h2>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CopyEmail" title="Copy email">
+                    Copy Email
+                </button>
+                @if (ObservedState.IsObserved(_student.Id))
+                {
+                    <button class="btn btn-sm btn-warning" @onclick="Unobserve">Unwatch</button>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-outline-primary" @onclick="Observe">Watch</button>
+                }
+            </div>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Index Number</dt><dd class="col-sm-9">@_student.IndexNumber</dd>
+                <dt class="col-sm-3">Email</dt><dd class="col-sm-9">@_student.Email</dd>
+                <dt class="col-sm-3">Semester</dt><dd class="col-sm-9">@_student.Semester</dd>
+            </dl>
+        </div>
+    </div>
+
+    @if (_copySuccess)
+    {
+        <div class="alert alert-success py-1 px-3 mb-3">Email copied to clipboard!</div>
+    }
+
+    <h3>Assigned Courses</h3>
+    <ErrorBoundary>
+        <ChildContent>
+            <DataTable TItem="CourseDto" Items="_courses">
+                <Header>
+                    <th>Course Name</th>
+                    <th>ECTS</th>
+                </Header>
+                <Row Context="c">
+                    <td>@c.Name</td>
+                    <td>@c.Ects</td>
+                </Row>
+            </DataTable>
+        </ChildContent>
+        <ErrorContent Context="ex">
+            <ApiError Message="@($"Could not load courses: {ex.Message}")" />
+        </ErrorContent>
+    </ErrorBoundary>
+
+    <h3>Assign Course</h3>
+    <ApiError Message="@_assignError" />
+    @if (_assignSuccess)
+    {
+        <div class="alert alert-success py-1 px-3 mb-3">Course assigned successfully!</div>
+    }
+    <EditForm Model="_assignRequest" OnValidSubmit="AssignCourse">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label class="form-label">Select Course</label>
+            <InputSelect class="form-select" @bind-Value="_assignRequest.CourseId">
+                <option value="0">-- Select a course --</option>
+                @foreach (var c in _allCourses)
+                {
+                    <option value="@c.Id">@c.Name (@c.Ects ECTS)</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => _assignRequest.CourseId" />
+        </div>
+        <button type="submit" class="btn btn-primary">Assign</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private StudentDto? _student;
+    private List<CourseDto> _courses = [];
+    private List<CourseDto> _allCourses = [];
+    private bool _loading = true;
+    private string? _error;
+    private string? _assignError;
+    private bool _assignSuccess;
+    private bool _copySuccess;
+    private AssignCourseModel _assignRequest = new();
+
+    private IJSObjectReference? _jsModule;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allCourses = await Api.GetCoursesAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        _student = null;
+        _courses = [];
+
+        try
+        {
+            _student = await Api.GetStudentAsync(Id);
+            if (_student is null)
+            {
+                _error = $"Student with id {Id} was not found.";
+                return;
+            }
+            _courses = await Api.GetStudentCoursesAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load student: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./js/studentInterop.js");
+        }
+    }
+
+    private async Task CopyEmail()
+    {
+        if (_jsModule is not null && _student is not null)
+        {
+            await _jsModule.InvokeVoidAsync("copyToClipboard", _student.Email);
+            _copySuccess = true;
+            StateHasChanged();
+            await Task.Delay(2000);
+            _copySuccess = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Observe()
+    {
+        if (_student is not null) ObservedState.Add(_student);
+    }
+
+    private void Unobserve()
+    {
+        if (_student is not null) ObservedState.Remove(_student.Id);
+    }
+
+    private async Task AssignCourse()
+    {
+        if (_assignRequest.CourseId == 0)
+        {
+            _assignError = "Please select a course.";
+            return;
+        }
+
+        _assignError = null;
+        _assignSuccess = false;
+
+        try
+        {
+            await Api.AssignCourseAsync(Id, new AssignStudentCourseRequest { CourseId = _assignRequest.CourseId });
+            _courses = await Api.GetStudentCoursesAsync(Id);
+            _assignSuccess = true;
+            _assignRequest = new();
+        }
+        catch (Exception ex)
+        {
+            _assignError = $"Failed to assign course: {ex.Message}";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+            await _jsModule.DisposeAsync();
+    }
+
+    private class AssignCourseModel
+    {
+        public int CourseId { get; set; }
+    }
+}

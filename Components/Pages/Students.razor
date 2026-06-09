@@ -1,0 +1,73 @@
+@page "/students"
+@rendermode InteractiveServer
+@inject StudentsApiClient Api
+@inject ObservedStudentsState ObservedState
+
+<PageTitle>Students</PageTitle>
+<h1>Students</h1>
+
+<a class="btn btn-primary mb-3" href="/students/create">+ Add Student</a>
+
+<LoadingPanel IsLoading="_loading" Message="Loading students..." />
+<ApiError Message="@_error" />
+
+@if (!_loading && _error is null)
+{
+    <ErrorBoundary>
+        <ChildContent>
+            <DataTable TItem="StudentDto" Items="_students" >
+                <Header>
+                    <th>Index</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Email</th>
+                    <th>Semester</th>
+                    <th>Actions</th>
+                </Header>
+                <Row Context="s">
+                    <td>@s.IndexNumber</td>
+                    <td>@s.FirstName</td>
+                    <td>@s.LastName</td>
+                    <td>@s.Email</td>
+                    <td>@s.Semester</td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-primary me-1" href="/students/@s.Id">Details</a>
+                        @if (ObservedState.IsObserved(s.Id))
+                        {
+                            <button class="btn btn-sm btn-warning" @onclick="() => ObservedState.Remove(s.Id)">Unwatch</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => ObservedState.Add(s)">Watch</button>
+                        }
+                    </td>
+                </Row>
+            </DataTable>
+        </ChildContent>
+        <ErrorContent Context="ex">
+            <ApiError Message="@($"Unexpected error: {ex.Message}")" />
+        </ErrorContent>
+    </ErrorBoundary>
+}
+
+@code {
+    private List<StudentDto> _students = [];
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _students = await Api.GetStudentsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load students: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

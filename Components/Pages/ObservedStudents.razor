@@ -1,0 +1,75 @@
+@page "/observed"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject ObservedStudentsState ObservedState
+@inject IJSRuntime JS
+
+<PageTitle>Observed Students</PageTitle>
+<h1>Observed Students</h1>
+
+@if (ObservedState.Count == 0)
+{
+    <p class="text-muted fst-italic">No students are currently being watched.</p>
+}
+else
+{
+    <DataTable TItem="StudentDto" Items="ObservedState.Observed">
+        <Header>
+            <th>Index</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Semester</th>
+            <th>Actions</th>
+        </Header>
+        <Row Context="s">
+            <td>@s.IndexNumber</td>
+            <td>@s.FirstName @s.LastName</td>
+            <td>@s.Email</td>
+            <td>@s.Semester</td>
+            <td>
+                <a class="btn btn-sm btn-outline-primary me-1" href="/students/@s.Id">Details</a>
+                <button class="btn btn-sm btn-danger" @onclick="() => RemoveObserved(s)">Remove</button>
+            </td>
+        </Row>
+    </DataTable>
+}
+
+@code {
+    private IJSObjectReference? _jsModule;
+
+    protected override void OnInitialized()
+    {
+        ObservedState.OnChange += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./js/studentInterop.js");
+        }
+    }
+
+    private async Task RemoveObserved(StudentDto student)
+    {
+        if (_jsModule is not null)
+        {
+            var confirmed = await _jsModule.InvokeAsync<bool>(
+                "confirmRemove", $"{student.FirstName} {student.LastName}");
+            if (confirmed)
+                ObservedState.Remove(student.Id);
+        }
+        else
+        {
+            ObservedState.Remove(student.Id);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ObservedState.OnChange -= StateHasChanged;
+        if (_jsModule is not null)
+            await _jsModule.DisposeAsync();
+    }
+}
