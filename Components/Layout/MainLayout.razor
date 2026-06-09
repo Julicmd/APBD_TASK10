@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject ObservedStudentsState ObservedState
 @implements IDisposable
 
 <div class="page">
@@ -10,7 +11,7 @@
         <div class="top-row px-4 d-flex justify-content-between align-items-center">
             <span class="text-muted small">Student Panel</span>
             <a href="/observed" class="badge bg-primary text-decoration-none">
-                 
+                bserved: @ObservedState.Count
             </a>
         </div>
 
