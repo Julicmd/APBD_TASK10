@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject ObservedStudentsState ObservedState
+@using StudentPanel.Services
 @implements IDisposable
 
 <div class="page">
@@ -11,7 +12,7 @@
         <div class="top-row px-4 d-flex justify-content-between align-items-center">
             <span class="text-muted small">Student Panel</span>
             <a href="/observed" class="badge bg-primary text-decoration-none">
-                bserved: @ObservedState.Count
+                Observed: @ObservedState.Count
             </a>
         </div>
 
@@ -30,11 +31,11 @@
 @code {
     protected override void OnInitialized()
     {
-        
+        ObservedState.OnChange += StateHasChanged;
     }
 
     public void Dispose()
     {
-        
+        ObservedState.OnChange -= StateHasChanged;
     }
 }
